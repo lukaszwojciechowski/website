@@ -10,6 +10,7 @@ stages:
     defaultValue: false
     fromVersion: "1.32"
 ---
-Enable resource resizing for containers in Guaranteed pods with integer CPU requests.
-It applies only in nodes with `InPlacePodVerticalScaling` and `CPUManager` features enabled,
-and the CPUManager policy set to `static`.
+Enables in-place CPU resizing for containers in pods with Guaranteed QoS class
+that use exclusive CPUs allocated by the static CPU manager policy.
+Requires the static CPU manager
+policy on the node.
