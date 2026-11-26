@@ -228,12 +228,12 @@ from the shared pool.
 
 ### Attempt a resize the kubelet cannot fulfill
 
-Decrease the CPU request and limit to 1500m. A container that uses exclusive
+Decrease the CPU request and limit to 2500m. A container that uses exclusive
 CPUs cannot move to the shared pool, so the kubelet rejects this resize:
 
 ```shell
 kubectl -n cpu-exclusive-example patch pod resize-exclusive-cpus-demo --subresource resize --patch \
-  '{"spec":{"containers":[{"name":"app-container","resources":{"requests":{"cpu":"1500m"},"limits":{"cpu":"1500m"}}}]}}'
+  '{"spec":{"containers":[{"name":"app-container","resources":{"requests":{"cpu":"2500m"},"limits":{"cpu":"2500m"}}}]}}'
 ```
 
 Check the Pod status:
@@ -246,8 +246,8 @@ The output shows:
 
 * A `PodResizePending` condition with `reason: Infeasible`. The condition's
   `message` contains `cannot move container from exclusive to shared pool,
-  (requested CPUs = 1500m)`.
-* `spec.containers[0].resources` with `cpu` set to 1500m, the desired state of
+  (requested CPUs = 2500m)`.
+* `spec.containers[0].resources` with `cpu` set to 2500m, the desired state of
   the pending resize request.
 * `status.containerStatuses[0].resources` still with `cpu` set to 3.
 * `status.containerStatuses[0].restartCount` still 0.
