@@ -32,8 +32,10 @@ You need the following for the exercise on this page:
 * The [static CPU manager policy](/docs/tasks/administer-cluster/cpu-management-policies/)
   configured on your nodes.
 * A `kubectl` client at version v1.32 or later, to use the `--subresource=resize` flag.
-* At least 3 CPUs on the node that the static CPU manager policy can allocate
-  exclusively.
+* A node with at least 4 CPUs. The static CPU manager policy reserves at least
+  1 CPU for system daemons, and the example Pod grows to 3 exclusive CPUs. The
+  node's allocatable CPU, which excludes the reserved CPUs, must cover these
+  3 CPUs plus the CPU requests of all other Pods on the node.
 
 ## About exclusive CPUs
 
@@ -59,9 +61,9 @@ kubelet changes the CPU assignment of the running container. For the default CPU
 
 Depending on the direction of the resize, the kubelet behaves as follows:
 
-* **Scale up:** The kubelet keeps the baseline CPUs and adds CPUs from the
-  shared pool. The kubelet selects CPUs that are topologically close to the CPUs
-  that the container already uses. If you configure a
+* **Scale up:** The kubelet keeps all CPUs that the container already uses and
+  adds CPUs from the shared pool that are topologically close to them. If you
+  configure a
   [Topology Manager](/docs/tasks/administer-cluster/topology-manager/) policy
   other than `none`, the new CPUs also match the Pod's NUMA affinity.
 * **Scale down:** The kubelet removes the excess CPUs from the container and
@@ -72,18 +74,19 @@ Depending on the direction of the resize, the kubelet behaves as follows:
 In most cases, when the kubelet cannot fulfill a resize, it rejects the resize
 as infeasible and does not retry it. The Pod gets a `PodResizePending` condition
 with `reason: Infeasible`, and the kubelet increments the
-`pod_infeasible_resizes_total` metric. The following resize requests are
+`kubelet_pod_infeasible_resizes_total` metric. The following resize requests are
 infeasible for a container that uses exclusive CPUs:
 
 * Moving a container between the shared pool and exclusive CPUs. An integer CPU
   request can only resize to another integer CPU request. For example, a resize
-  from 2 to 3 CPUs is possible, but a resize from 2 to 1500m or from 800m to 2
+  from 2 to 3 CPUs is possible, but a resize from 2 to 2500m or from 800m to 2
   is infeasible.
 * Resizing a non-restartable init container that uses exclusive CPUs.
 * Adding or removing a container that uses exclusive CPUs in a Guaranteed Pod.
 * Scaling a container below its baseline CPUs.
 * Scaling up a container when the CPU Manager cannot allocate the additional
-  CPUs, for example because other containers use the remaining exclusive CPUs.
+  CPUs, for example because other containers already use all CPUs that the
+  kubelet can allocate exclusively.
 * Resizing a container when the static policy runs with the `full-pcpus-only`
   option and the requested CPU count does not satisfy the SMT alignment: the
   count is not a multiple of the CPUs per physical core, or the node does not
@@ -307,9 +310,9 @@ When the kubelet cannot apply a resize, the Pod gets a `PodResizePending`
 condition. The condition `reason` is `Deferred` when the resize can succeed
 later, and `Infeasible` when it cannot succeed. The `message` field of the
 condition explains the reason. For an infeasible resize, the kubelet also
-increments the `pod_infeasible_resizes_total` metric, with a `reason_detail`
-label that identifies the reason. For more information about resize status
-conditions, see
+increments the `kubelet_pod_infeasible_resizes_total` metric, with a
+`reason_detail` label that identifies the reason. For more information about
+resize status conditions, see
 [Pod resize status](/docs/tasks/configure-pod-container/resize-container-resources/#pod-resize-status).
 
 Common reasons why the kubelet does not apply a CPU resize of a container that
@@ -320,8 +323,9 @@ uses exclusive CPUs:
   enable the `InPlacePodVerticalScalingExclusiveCPUs` feature gate. The
   condition message contains `Resize is infeasible for Guaranteed Pods`. Enable
   the feature gate on your nodes.
-* **Not enough free CPUs:** Other containers use the exclusive CPUs that the
-  resize needs. The condition's `message` contains `Unable to resize container
+* **Not enough free CPUs:** The node does not have enough free CPUs that the
+  kubelet can allocate exclusively, because other containers already use them.
+  The condition's `message` contains `Unable to resize container
   exclusively allocated pool` and `not enough cpus available to satisfy
   request`, and the kubelet does not retry the resize. Free CPUs and then send
   the resize request again, or send a resize request for fewer CPUs. With the
@@ -350,9 +354,12 @@ uses exclusive CPUs:
 * **Topology alignment error:** The Topology Manager cannot align the new CPUs with
   the Pod's NUMA affinity. This can also affect a scale-down. The condition's
   `message` is `Resources cannot be allocated with Topology locality`, and the
-  kubelet does not retry the resize. Free CPUs that give the topology room to
-  align and then send the resize request again, or use a less restrictive
-  Topology Manager policy.
+  kubelet does not retry the resize. For a scale-up, free CPUs that give the
+  topology room to align and then send the resize request again. For a
+  scale-down, freeing CPUs does not help, because the container keeps only CPUs
+  that it already uses. Send a resize request for a different CPU count
+  instead. In both cases, you can also use a less restrictive Topology Manager
+  policy.
 * **Several containers in one request:** With the `pod` scope and the
   `restricted` or `single-numa-node` policy, the condition's `message` contains
   `not allowed to resize exclusive CPUs of more than one container in a single
