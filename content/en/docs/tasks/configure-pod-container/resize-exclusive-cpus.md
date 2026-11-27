@@ -32,10 +32,9 @@ You need the following for the exercise on this page:
 * The [static CPU manager policy](/docs/tasks/administer-cluster/cpu-management-policies/)
   configured on your nodes.
 * A `kubectl` client at version v1.32 or later, to use the `--subresource=resize` flag.
-* A node with at least 4 CPUs. The static CPU manager policy reserves at least
-  1 CPU for system daemons, and the example Pod grows to 3 exclusive CPUs. The
-  node's allocatable CPU, which excludes the reserved CPUs, must cover these
-  3 CPUs plus the CPU requests of all other Pods on the node.
+* At least 3 CPUs on the node available for exclusive allocation by the static
+  CPU manager policy, in addition to the CPUs reserved for system daemons and the
+  CPU requests of all other Pods, including `kube-system` Pods.
 
 ## About exclusive CPUs
 
